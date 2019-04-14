@@ -25,14 +25,10 @@ public class Main extends AbstractVerticle {
 
     @Override
     public void start(Future<Void> future) {
-        WebClientOptions options = new WebClientOptions().setUserAgent("LoadTest/1.0");
-        options.setKeepAlive(false);
-        WebClient client = WebClient.create(vertx, options);
-
         File[] csvFilesInDirectory = getCsvFilesInDirectory(config().getString("directoryPath", "csvData/"));
 
         startTime = System.currentTimeMillis();
-        readAndPostFiles(csvFilesInDirectory, client);
+        readAndPostFiles(csvFilesInDirectory);
 
         vertx.setPeriodic(1000, id -> estimatedEfficiency());
     }
@@ -42,12 +38,12 @@ public class Main extends AbstractVerticle {
         return directory.listFiles((dir, name) -> name.endsWith(".csv"));
     }
 
-    private void readAndPostFiles(File[] csvFiles, WebClient client) {
+    private void readAndPostFiles(File[] csvFiles) {
         OpenOptions openOptions = getFileOpenOptions();
 
         for (File csvFile : csvFiles) {
             vertx.fileSystem()
-                 .open(csvFile.getPath(), openOptions, measurementFileAsyncHandler(client));
+                 .open(csvFile.getPath(), openOptions, measurementFileAsyncHandler());
         }
     }
 
@@ -57,16 +53,22 @@ public class Main extends AbstractVerticle {
                                 .setCreate(false);
     }
 
-    private Handler<AsyncResult<AsyncFile>> measurementFileAsyncHandler(WebClient client) {
+    private Handler<AsyncResult<AsyncFile>> measurementFileAsyncHandler() {
         return handler -> {
             if (handler.succeeded()) {
+                WebClientOptions options = new WebClientOptions().setUserAgent("LoadTest/1.0");
+                options.setKeepAlive(true);
+                WebClient client = WebClient.create(vertx, options);
+
                 MutableInt count = new MutableInt();
                 sentCount.add(count);
-
                 AsyncFile asyncFile = handler.result();
+                asyncFile.pause();
+                asyncFile.fetch(200);
 
+                vertx.setPeriodic(1000, id -> asyncFile.fetch(220));
                 RecordParser recordParser = getCsvRecordParser(client, count);
-                asyncFile.handler(recordParser)
+                asyncFile.setReadBufferSize(1024).handler(recordParser)
                          .endHandler(v -> asyncFile.close());
             }
         };
