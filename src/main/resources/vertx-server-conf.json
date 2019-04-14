@@ -1,5 +1,8 @@
 {
+  "directoryPath" : "csvData/",
   "port" : 8080,
+  "defaultPort" : 8080,
   "hostname" : "localhost",
+  "defaultHost" : "localhost",
   "uri" : "/measurement"
 }
